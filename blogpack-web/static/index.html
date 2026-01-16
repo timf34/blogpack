@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blogpack - Pack blogs for offline reading</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Sunlit-inspired color palette */
+        :root {
+            --day: #fffdfa;
+            --evening: #fccc83;
+            --dusk: #db7a2a;
+            --night: #0f131c;
+            --shadow: #1a1917;
+            --bounce-light: #f5d7a6;
+            --accent: #db7a2a;
+            --accent-dark: #b8651f;
+        }
+
+        body {
+            background-color: var(--day);
+            margin: 0;
+            padding: 0;
+            position: relative;
+        }
+
+        /* Noise texture on body background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('/assets/noise.png');
+            background-size: 180px;
+            background-repeat: repeat;
+            opacity: 0.06;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Paper texture wrapper for inputs */
+        .input-wrapper {
+            position: relative;
+            background-color: #faf8f5;
+            border-radius: 0.25rem;
+        }
+        .input-wrapper::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: url("/assets/noise.png");
+            background-size: 180px;
+            background-repeat: repeat;
+            opacity: 0.06;
+            pointer-events: none;
+            border-radius: inherit;
+            z-index: 21;
+        }
+        .input-wrapper input {
+            background: transparent;
+        }
+
+        /* Brutalist checkbox styling */
+        .checkbox-brutalist {
+            cursor: pointer;
+            appearance: none;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.125rem;
+            border: 3px solid currentColor;
+            background: white;
+            margin: 0;
+            box-shadow: 3px 3px 0 currentColor;
+        }
+        .checkbox-check {
+            position: absolute;
+            inset: 0;
+            width: 0.75rem;
+            height: 0.75rem;
+            margin: auto;
+            transform: scale(0);
+            transition: transform 150ms ease-in-out;
+            background: var(--accent);
+            transform-origin: bottom left;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+        }
+        .checkbox-brutalist:checked + .checkbox-check {
+            transform: scale(1);
+        }
+
+        /* Hide spinner buttons on number input */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        /* Button styles */
+        .btn-primary {
+            background-color: var(--accent);
+            transition: background-color 0.2s ease;
+        }
+        .btn-primary:hover {
+            background-color: var(--accent-dark);
+        }
+
+        /* Soft glow effect on card */
+        .card-glow {
+            box-shadow:
+                0 0 0 1px rgba(219, 122, 42, 0.1),
+                0 4px 16px rgba(219, 122, 42, 0.08),
+                0 8px 32px rgba(219, 122, 42, 0.04);
+        }
+    </style>
+</head>
+<body class="min-h-screen py-12 px-4">
+    <div class="max-w-2xl mx-auto">
+        <!-- Header -->
+        <div class="mb-10 text-center">
+            <h1 class="text-4xl sm:text-5xl font-bold tracking-tight mb-4" style="color: var(--night);">
+                Blog<span style="color: var(--accent)">pack</span>
+            </h1>
+            <p class="text-lg max-w-xl mx-auto" style="color: var(--shadow);">
+                Pack any blog into PDF, EPUB, or HTML for offline reading.
+                Perfect for your e-reader.
+            </p>
+        </div>
+
+        <!-- Main Form Card -->
+        <div class="relative mb-8">
+            <!-- Shadow layer -->
+            <div class="w-full h-full absolute inset-0 rounded-xl translate-y-2 translate-x-2" style="background-color: var(--evening);"></div>
+
+            <!-- Card -->
+            <div class="rounded-xl relative z-20 p-8 sm:p-10 border-[3px] border-gray-900 bg-white card-glow">
+                <form id="packForm" onsubmit="handleSubmit(event)">
+                    <!-- URL Input -->
+                    <div class="mb-6">
+                        <label for="blogUrl" class="block mb-2 font-medium" style="color: var(--shadow);">Blog URL</label>
+                        <div class="relative">
+                            <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0 z-10"></div>
+                            <input
+                                type="text"
+                                id="blogUrl"
+                                name="blogUrl"
+                                placeholder="https://www.cold-takes.com/"
+                                required
+                                class="border-[3px] w-full relative z-20 border-gray-900 placeholder-gray-400 text-lg font-medium focus:outline-none focus:ring-2 py-3.5 px-5 rounded bg-white"
+                                style="--tw-ring-color: var(--accent);"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Options Row -->
+                    <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 mb-6">
+                        <!-- Max Posts -->
+                        <div>
+                            <label for="maxPosts" class="block mb-2 font-medium" style="color: var(--shadow);">Max posts (1-100)</label>
+                            <div class="relative">
+                                <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0 z-10"></div>
+                                <div class="input-wrapper relative z-20 rounded">
+                                    <input
+                                        type="number"
+                                        id="maxPosts"
+                                        name="maxPosts"
+                                        value="100"
+                                        min="1"
+                                        max="100"
+                                        required
+                                        class="border-[3px] w-full relative z-20 border-gray-900 text-lg font-medium focus:outline-none focus:ring-2 py-3.5 px-5 rounded"
+                                        style="--tw-ring-color: var(--accent);"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Format Checkboxes -->
+                        <div>
+                            <label class="block mb-2 font-medium" style="color: var(--shadow);">Output formats</label>
+                            <div class="flex gap-4 pt-2">
+                                <label class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" style="color: var(--night);">
+                                    <span class="relative w-6 h-6">
+                                        <input type="checkbox" id="formatPdf" name="formatPdf" checked class="checkbox-brutalist peer">
+                                        <span class="checkbox-check"></span>
+                                    </span>
+                                    PDF
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" style="color: var(--night);">
+                                    <span class="relative w-6 h-6">
+                                        <input type="checkbox" id="formatEpub" name="formatEpub" checked class="checkbox-brutalist peer">
+                                        <span class="checkbox-check"></span>
+                                    </span>
+                                    EPUB
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" style="color: var(--night);">
+                                    <span class="relative w-6 h-6">
+                                        <input type="checkbox" id="formatHtml" name="formatHtml" checked class="checkbox-brutalist peer">
+                                        <span class="checkbox-check"></span>
+                                    </span>
+                                    HTML
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="relative w-full group">
+                        <div class="w-full h-full rounded bg-gray-800 translate-y-1 translate-x-1 absolute inset-0 z-10"></div>
+                        <button
+                            type="submit"
+                            id="submitBtn"
+                            class="btn-primary py-4 rounded px-6 group-hover:-translate-y-px group-hover:-translate-x-px ease-out duration-300 z-20 relative w-full border-[3px] border-gray-900 font-bold text-lg text-white"
+                        >
+                            Pack Blog
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Status/Progress Area -->
+        <div id="statusArea" class="hidden">
+            <div class="relative">
+                <div class="w-full h-full absolute inset-0 rounded-xl translate-y-2 translate-x-2" style="background-color: var(--bounce-light);"></div>
+                <div class="rounded-xl relative z-20 p-6 border-[3px] border-gray-900 bg-white">
+                    <div id="progressContent">
+                        <div class="flex items-center gap-3">
+                            <div class="animate-spin w-5 h-5 border-2 border-gray-300 rounded-full" style="border-top-color: var(--accent);"></div>
+                            <span id="progressText" class="font-medium" style="color: var(--shadow);">Processing...</span>
+                        </div>
+                    </div>
+                    <div id="errorContent" class="hidden">
+                        <p class="text-red-700 font-medium" id="errorText"></p>
+                    </div>
+                    <div id="downloadContent" class="hidden">
+                        <p class="font-medium mb-4" style="color: var(--accent-dark);">Your blog pack is ready!</p>
+                        <a
+                            id="downloadLink"
+                            href="#"
+                            class="btn-primary inline-block py-3 px-6 rounded border-[3px] border-gray-900 font-bold text-white"
+                        >
+                            Download ZIP
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Too Busy Message -->
+        <div id="busyArea" class="hidden">
+            <div class="relative">
+                <div class="w-full h-full absolute inset-0 rounded-xl translate-y-2 translate-x-2" style="background-color: var(--evening);"></div>
+                <div class="rounded-xl relative z-20 p-6 border-[3px] border-gray-900" style="background-color: #fff8ed;">
+                    <p class="font-medium" style="color: var(--shadow);">
+                        Too many users right now! Please come back later, or email
+                        <a href="mailto:timf34@gmail.com" class="underline font-bold" style="color: var(--accent);">timf34@gmail.com</a>
+                        if this is something he should make just a little more scalable ;)
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-12 text-center text-sm" style="color: var(--shadow); opacity: 0.6;">
+            <p>Supports Ghost, Substack, and WordPress blogs (up to 100 posts)</p>
+        </div>
+    </div>
+
+    <script>
+        let currentJobId = null;
+        let pollInterval = null;
+
+        async function handleSubmit(event) {
+            event.preventDefault();
+
+            // Reset UI
+            document.getElementById('statusArea').classList.add('hidden');
+            document.getElementById('busyArea').classList.add('hidden');
+            document.getElementById('progressContent').classList.remove('hidden');
+            document.getElementById('errorContent').classList.add('hidden');
+            document.getElementById('downloadContent').classList.add('hidden');
+
+            // Gather form data
+            const url = document.getElementById('blogUrl').value;
+            const maxPosts = parseInt(document.getElementById('maxPosts').value) || 100;
+            const formats = [];
+            if (document.getElementById('formatPdf').checked) formats.push('pdf');
+            if (document.getElementById('formatEpub').checked) formats.push('epub');
+            if (document.getElementById('formatHtml').checked) formats.push('html');
+
+            if (formats.length === 0) {
+                alert('Please select at least one output format');
+                return;
+            }
+
+            // Disable form
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').textContent = 'Processing...';
+            document.getElementById('statusArea').classList.remove('hidden');
+            document.getElementById('progressText').textContent = 'Starting...';
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, formats, max_posts: maxPosts })
+                });
+
+                if (response.status === 503) {
+                    // Too busy
+                    document.getElementById('statusArea').classList.add('hidden');
+                    document.getElementById('busyArea').classList.remove('hidden');
+                    resetForm();
+                    return;
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to start processing');
+                }
+
+                const data = await response.json();
+                currentJobId = data.job_id;
+
+                // Start polling for status
+                pollInterval = setInterval(checkStatus, 2000);
+
+            } catch (error) {
+                showError(error.message);
+                resetForm();
+            }
+        }
+
+        async function checkStatus() {
+            if (!currentJobId) return;
+
+            try {
+                const response = await fetch(`/status/${currentJobId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to check status');
+                }
+
+                const status = await response.json();
+
+                if (status.status === 'processing') {
+                    document.getElementById('progressText').textContent = status.progress || 'Processing...';
+                } else if (status.status === 'complete') {
+                    clearInterval(pollInterval);
+                    showDownload();
+                } else if (status.status === 'error') {
+                    clearInterval(pollInterval);
+                    showError(status.error || 'An error occurred');
+                    resetForm();
+                }
+
+            } catch (error) {
+                clearInterval(pollInterval);
+                showError(error.message);
+                resetForm();
+            }
+        }
+
+        function showDownload() {
+            document.getElementById('progressContent').classList.add('hidden');
+            document.getElementById('downloadContent').classList.remove('hidden');
+            document.getElementById('downloadLink').href = `/download/${currentJobId}`;
+            resetForm();
+        }
+
+        function showError(message) {
+            document.getElementById('progressContent').classList.add('hidden');
+            document.getElementById('errorContent').classList.remove('hidden');
+            document.getElementById('errorText').textContent = message;
+        }
+
+        function resetForm() {
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').textContent = 'Pack Blog';
+        }
+    </script>
+</body>
+</html>

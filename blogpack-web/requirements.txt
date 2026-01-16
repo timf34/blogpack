@@ -1,0 +1,12 @@
+# Web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# blogpack dependencies
+httpx>=0.25.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+ebooklib>=0.18
+weasyprint>=60.0
+rich>=13.0.0
+typer>=0.9.0
