@@ -2,8 +2,9 @@
 
 from .base import BlogPlatform, Article
 from .ghost import GhostPlatform
+from .substack import SubstackPlatform
 
-PLATFORMS = [GhostPlatform()]
+PLATFORMS = [GhostPlatform(), SubstackPlatform()]
 
 
 def detect_platform(html: str) -> BlogPlatform | None:
@@ -14,4 +15,4 @@ def detect_platform(html: str) -> BlogPlatform | None:
     return None
 
 
-__all__ = ["BlogPlatform", "Article", "GhostPlatform", "detect_platform", "PLATFORMS"]
+__all__ = ["BlogPlatform", "Article", "GhostPlatform", "SubstackPlatform", "detect_platform", "PLATFORMS"]

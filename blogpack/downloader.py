@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import random
 from pathlib import Path
 from urllib.parse import urlparse, urljoin
 
@@ -13,9 +14,19 @@ from .platforms.base import BlogPlatform, Article, PostInfo
 
 console = Console()
 
-# Rate limiting
-MAX_CONCURRENT = 5
-REQUEST_DELAY = 0.1  # seconds between requests
+# Rate limiting defaults
+DEFAULT_MAX_CONCURRENT = 5
+DEFAULT_REQUEST_DELAY = 0.1  # seconds between requests
+
+# Platform-specific rate limits (more conservative for Substack)
+PLATFORM_RATE_LIMITS = {
+    "substack": {"max_concurrent": 2, "request_delay": 1.0},
+    "ghost": {"max_concurrent": 5, "request_delay": 0.1},
+}
+
+# Retry settings for 429 errors
+MAX_RETRIES = 5
+INITIAL_BACKOFF = 2.0  # seconds
 
 
 async def download_posts(
@@ -38,9 +49,19 @@ async def download_posts(
     Returns:
         Tuple of (list of Article objects, dict mapping image URL to local path)
     """
+    # Get platform-specific rate limits
+    rate_limits = PLATFORM_RATE_LIMITS.get(
+        platform.name,
+        {"max_concurrent": DEFAULT_MAX_CONCURRENT, "request_delay": DEFAULT_REQUEST_DELAY}
+    )
+    max_concurrent = rate_limits["max_concurrent"]
+    request_delay = rate_limits["request_delay"]
+
+    console.print(f"[dim]Using rate limits for {platform.name}: {max_concurrent} concurrent, {request_delay}s delay[/dim]")
+
     articles = []
     image_map: dict[str, Path] = {}
-    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+    semaphore = asyncio.Semaphore(max_concurrent)
 
     async with httpx.AsyncClient(
         follow_redirects=True,
@@ -57,22 +78,66 @@ async def download_posts(
             # Download posts
             task = progress.add_task("[cyan]Downloading posts...", total=len(posts))
 
+            skipped_count = 0
+
             async def download_post(post: PostInfo) -> Article | None:
+                nonlocal skipped_count
                 async with semaphore:
-                    try:
-                        await asyncio.sleep(REQUEST_DELAY)
-                        response = await client.get(post.url)
-                        response.raise_for_status()
-                        article = platform.extract_article(response.text, post.url)
-                        progress.advance(task)
-                        return article
-                    except Exception as e:
-                        console.print(f"[yellow]Warning: Failed to download {post.url}: {e}[/yellow]")
-                        progress.advance(task)
-                        return None
+                    retries = 0
+                    backoff = INITIAL_BACKOFF
+                    while retries <= MAX_RETRIES:
+                        try:
+                            await asyncio.sleep(request_delay)
+                            response = await client.get(post.url)
+
+                            # Handle 429 Too Many Requests with exponential backoff
+                            if response.status_code == 429:
+                                retries += 1
+                                if retries > MAX_RETRIES:
+                                    console.print(f"[yellow]Warning: Max retries reached for {post.url}[/yellow]")
+                                    progress.advance(task)
+                                    return None
+                                # Add jitter to backoff
+                                jitter = random.uniform(0.5, 1.5)
+                                wait_time = backoff * jitter
+                                console.print(f"[yellow]Rate limited, waiting {wait_time:.1f}s before retry...[/yellow]")
+                                await asyncio.sleep(wait_time)
+                                backoff *= 2  # Exponential backoff
+                                continue
+
+                            response.raise_for_status()
+                            article = platform.extract_article(response.text, post.url)
+                            if article is None:
+                                skipped_count += 1
+                            progress.advance(task)
+                            return article
+                        except httpx.HTTPStatusError as e:
+                            if e.response.status_code == 429:
+                                retries += 1
+                                if retries > MAX_RETRIES:
+                                    console.print(f"[yellow]Warning: Max retries reached for {post.url}[/yellow]")
+                                    progress.advance(task)
+                                    return None
+                                jitter = random.uniform(0.5, 1.5)
+                                wait_time = backoff * jitter
+                                console.print(f"[yellow]Rate limited, waiting {wait_time:.1f}s before retry...[/yellow]")
+                                await asyncio.sleep(wait_time)
+                                backoff *= 2
+                                continue
+                            console.print(f"[yellow]Warning: Failed to download {post.url}: {e}[/yellow]")
+                            progress.advance(task)
+                            return None
+                        except Exception as e:
+                            console.print(f"[yellow]Warning: Failed to download {post.url}: {e}[/yellow]")
+                            progress.advance(task)
+                            return None
+                    return None
 
             results = await asyncio.gather(*[download_post(p) for p in posts])
             articles = [a for a in results if a is not None]
+
+            if skipped_count > 0:
+                console.print(f"[yellow]Skipped {skipped_count} premium/paywalled posts[/yellow]")
 
             # Download images if requested
             if include_images and output_dir:
@@ -88,25 +153,41 @@ async def download_posts(
 
                     async def download_image(url: str) -> tuple[str, Path | None]:
                         async with semaphore:
-                            try:
-                                await asyncio.sleep(REQUEST_DELAY)
-                                response = await client.get(url)
-                                response.raise_for_status()
+                            retries = 0
+                            backoff = INITIAL_BACKOFF
+                            while retries <= MAX_RETRIES:
+                                try:
+                                    await asyncio.sleep(request_delay)
+                                    response = await client.get(url)
 
-                                # Generate filename from URL and content hash
-                                parsed = urlparse(url)
-                                ext = Path(parsed.path).suffix or ".jpg"
-                                content_hash = hashlib.md5(response.content).hexdigest()[:8]
-                                filename = f"{content_hash}{ext}"
-                                filepath = images_dir / filename
+                                    # Handle 429 with backoff
+                                    if response.status_code == 429:
+                                        retries += 1
+                                        if retries > MAX_RETRIES:
+                                            progress.advance(img_task)
+                                            return url, None
+                                        wait_time = backoff * random.uniform(0.5, 1.5)
+                                        await asyncio.sleep(wait_time)
+                                        backoff *= 2
+                                        continue
 
-                                filepath.write_bytes(response.content)
-                                progress.advance(img_task)
-                                return url, filepath
-                            except Exception as e:
-                                console.print(f"[yellow]Warning: Failed to download image {url}: {e}[/yellow]")
-                                progress.advance(img_task)
-                                return url, None
+                                    response.raise_for_status()
+
+                                    # Generate filename from URL and content hash
+                                    parsed = urlparse(url)
+                                    ext = Path(parsed.path).suffix or ".jpg"
+                                    content_hash = hashlib.md5(response.content).hexdigest()[:8]
+                                    filename = f"{content_hash}{ext}"
+                                    filepath = images_dir / filename
+
+                                    filepath.write_bytes(response.content)
+                                    progress.advance(img_task)
+                                    return url, filepath
+                                except Exception as e:
+                                    console.print(f"[yellow]Warning: Failed to download image {url}: {e}[/yellow]")
+                                    progress.advance(img_task)
+                                    return url, None
+                            return url, None
 
                     img_results = await asyncio.gather(*[download_image(url) for url in all_images])
                     image_map = {url: path for url, path in img_results if path is not None}

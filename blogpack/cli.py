@@ -42,6 +42,11 @@ def main(
         "-p", "--platform",
         help="Force platform (ghost). Auto-detects if not specified.",
     ),
+    limit: int = typer.Option(
+        None,
+        "-n", "--limit",
+        help="Limit number of posts to download (useful for testing)",
+    ),
 ):
     """
     Download a blog for offline reading.
@@ -49,7 +54,7 @@ def main(
     Example:
         blogpack https://www.cold-takes.com/ -o ./cold-takes
     """
-    asyncio.run(_run(url, output, format, images, platform))
+    asyncio.run(_run(url, output, format, images, platform, limit))
 
 
 async def _run(
@@ -58,6 +63,7 @@ async def _run(
     format: str,
     images: bool,
     platform: str | None,
+    limit: int | None,
 ):
     """Async main function."""
     # Normalize URL
@@ -77,6 +83,11 @@ async def _run(
     if not posts:
         console.print("[yellow]No posts found.[/yellow]")
         raise typer.Exit(0)
+
+    # Apply limit if specified
+    if limit and limit > 0:
+        posts = posts[:limit]
+        console.print(f"[cyan]Limiting to {limit} posts for download[/cyan]")
 
     # Download posts and images
     articles, image_map = await download_posts(

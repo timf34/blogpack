@@ -1,5 +1,6 @@
 """Clean and normalize article HTML content."""
 
+import re
 from bs4 import BeautifulSoup
 
 # Minimal CSS for pleasant reading
@@ -82,6 +83,11 @@ def clean_html(content_html: str) -> str:
 
     Removes scripts, styles, unwanted attributes, and wrapper tags.
     """
+    # Remove Ghost CMS kg-card comments (they get mangled by parser)
+    content_html = re.sub(r'<!--kg-card-(?:begin|end): \w+-->', '', content_html)
+    # Also remove if they've already been mangled into text
+    content_html = re.sub(r'kg-card-(?:begin|end): \w+', '', content_html)
+
     soup = BeautifulSoup(content_html, "lxml")
 
     # Remove unwanted elements
