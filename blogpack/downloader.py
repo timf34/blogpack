@@ -22,6 +22,7 @@ DEFAULT_REQUEST_DELAY = 0.1  # seconds between requests
 PLATFORM_RATE_LIMITS = {
     "substack": {"max_concurrent": 2, "request_delay": 1.0},
     "ghost": {"max_concurrent": 5, "request_delay": 0.1},
+    "wordpress": {"max_concurrent": 3, "request_delay": 0.5},
 }
 
 # Retry settings for 429 errors
