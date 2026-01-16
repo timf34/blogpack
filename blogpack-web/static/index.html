@@ -38,7 +38,7 @@
             background-image: url('/assets/noise.png');
             background-size: 180px;
             background-repeat: repeat;
-            opacity: 0.06;
+            opacity: 0.04;
             pointer-events: none;
             z-index: 0;
         }
@@ -171,19 +171,17 @@
                             <label for="maxPosts" class="block mb-2 font-medium" style="color: var(--shadow);">Max posts (1-100)</label>
                             <div class="relative">
                                 <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0 z-10"></div>
-                                <div class="input-wrapper relative z-20 rounded">
-                                    <input
-                                        type="number"
-                                        id="maxPosts"
-                                        name="maxPosts"
-                                        value="100"
-                                        min="1"
-                                        max="100"
-                                        required
-                                        class="border-[3px] w-full relative z-20 border-gray-900 text-lg font-medium focus:outline-none focus:ring-2 py-3.5 px-5 rounded"
-                                        style="--tw-ring-color: var(--accent);"
-                                    >
-                                </div>
+                                <input
+                                    type="number"
+                                    id="maxPosts"
+                                    name="maxPosts"
+                                    value="100"
+                                    min="1"
+                                    max="100"
+                                    required
+                                    class="border-[3px] w-full relative z-20 border-gray-900 text-lg font-medium focus:outline-none focus:ring-2 py-3.5 px-5 rounded bg-white"
+                                    style="--tw-ring-color: var(--accent);"
+                                >
                             </div>
                         </div>
 
