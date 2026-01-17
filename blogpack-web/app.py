@@ -1,6 +1,7 @@
 """Blogpack Web App - FastAPI backend."""
 
 import asyncio
+import gc
 import shutil
 import uuid
 from datetime import datetime, timedelta
@@ -21,7 +22,7 @@ from blogpack.downloader import download_posts
 from blogpack.exporters import export_html, export_epub, export_pdf
 
 # Configuration
-MAX_CONCURRENT_JOBS = 3
+MAX_CONCURRENT_JOBS = 1  # Keep low for memory-constrained servers
 MAX_POSTS = 100
 TEMP_DIR = Path("/tmp/blogpack") if sys.platform != "win32" else Path("C:/temp/blogpack")
 JOB_EXPIRY_HOURS = 1
@@ -44,10 +45,19 @@ class ProcessRequest(BaseModel):
 
 
 class JobStatus(BaseModel):
-    status: str  # "processing", "complete", "error"
+    status: str  # "queued", "processing", "complete", "error"
     progress: str | None = None
     error: str | None = None
     download_ready: bool = False
+    queue_position: int | None = None  # Position in queue (1 = next up)
+    queue_total: int = 0  # Total jobs waiting + processing
+
+
+class QueueInfo(BaseModel):
+    processing: int  # Currently processing
+    queued: int  # Waiting in queue
+    total: int  # Total active jobs
+    your_position: int | None = None  # Your position if you have a job
 
 
 def normalize_url(url: str) -> str:
@@ -131,6 +141,11 @@ async def process_blog(job_id: str, url: str, formats: list[str], max_posts: int
         jobs[job_id]["status"] = "error"
         jobs[job_id]["error"] = str(e)
         jobs[job_id]["progress"] = None
+    finally:
+        # Force garbage collection to free memory from WeasyPrint/BeautifulSoup
+        gc.collect()
+        # Process next queued job if any
+        await process_next_queued_job()
 
 
 def cleanup_old_jobs():
@@ -149,19 +164,65 @@ def cleanup_old_jobs():
         del jobs[job_id]
 
 
+def get_queue_stats() -> tuple[int, int, list[str]]:
+    """Get queue statistics. Returns (processing_count, queued_count, queued_job_ids_in_order)."""
+    processing = 0
+    queued_jobs = []
+
+    for job_id, job in jobs.items():
+        if job["status"] == "processing":
+            processing += 1
+        elif job["status"] == "queued":
+            queued_jobs.append((job_id, job.get("queued_at", job.get("created_at"))))
+
+    # Sort queued jobs by queue time (oldest first)
+    queued_jobs.sort(key=lambda x: x[1])
+    queued_ids = [j[0] for j in queued_jobs]
+
+    return processing, len(queued_ids), queued_ids
+
+
+def get_queue_position(job_id: str) -> int | None:
+    """Get position in queue for a job (1 = next up). Returns None if not queued."""
+    if job_id not in jobs or jobs[job_id]["status"] != "queued":
+        return None
+
+    _, _, queued_ids = get_queue_stats()
+    try:
+        return queued_ids.index(job_id) + 1
+    except ValueError:
+        return None
+
+
+async def process_next_queued_job():
+    """Start processing the next job in queue if capacity available."""
+    processing, _, queued_ids = get_queue_stats()
+
+    if processing >= MAX_CONCURRENT_JOBS or not queued_ids:
+        return
+
+    # Get the next job to process
+    next_job_id = queued_ids[0]
+    job = jobs[next_job_id]
+
+    # Update status and start processing
+    job["status"] = "processing"
+    job["progress"] = "Starting..."
+
+    # Start the background task
+    asyncio.create_task(process_blog(
+        next_job_id,
+        job["url"],
+        job["formats"],
+        job["max_posts"]
+    ))
+
+
 @app.post("/process")
 async def start_processing(request: ProcessRequest, background_tasks: BackgroundTasks):
     """Start processing a blog URL."""
     # Clean up old jobs first
     cleanup_old_jobs()
-
-    # Check concurrent job limit
-    running = sum(1 for j in jobs.values() if j["status"] == "processing")
-    if running >= MAX_CONCURRENT_JOBS:
-        raise HTTPException(
-            status_code=503,
-            detail="Too many users right now! Please come back later, or email timf34@gmail.com if this is something he should make just a little more scalable ;)"
-        )
 
     # Validate request
     if not request.url:
@@ -174,18 +235,39 @@ async def start_processing(request: ProcessRequest, background_tasks: Background
     url = normalize_url(request.url)
     max_posts = min(max(1, request.max_posts), MAX_POSTS)
 
-    # Create job
-    job_id = str(uuid.uuid4())
-    jobs[job_id] = {
-        "status": "processing",
-        "progress": "Starting...",
-        "error": None,
-        "download_ready": False,
-        "created_at": datetime.now(),
-    }
+    # Check if we can start immediately or need to queue
+    processing, queued, _ = get_queue_stats()
+    now = datetime.now()
 
-    # Start background processing
-    background_tasks.add_task(process_blog, job_id, url, request.formats, max_posts)
+    job_id = str(uuid.uuid4())
+
+    if processing < MAX_CONCURRENT_JOBS:
+        # Can start immediately
+        jobs[job_id] = {
+            "status": "processing",
+            "progress": "Starting...",
+            "error": None,
+            "download_ready": False,
+            "created_at": now,
+            "url": url,
+            "formats": request.formats,
+            "max_posts": max_posts,
+        }
+        # Start background processing
+        background_tasks.add_task(process_blog, job_id, url, request.formats, max_posts)
+    else:
+        # Add to queue
+        jobs[job_id] = {
+            "status": "queued",
+            "progress": None,
+            "error": None,
+            "download_ready": False,
+            "created_at": now,
+            "queued_at": now,
+            "url": url,
+            "formats": request.formats,
+            "max_posts": max_posts,
+        }
 
     return {"job_id": job_id}
 
@@ -197,11 +279,26 @@ async def get_status(job_id: str) -> JobStatus:
         raise HTTPException(status_code=404, detail="Job not found")
 
     job = jobs[job_id]
+    processing, queued, _ = get_queue_stats()
+
     return JobStatus(
         status=job["status"],
         progress=job.get("progress"),
         error=job.get("error"),
         download_ready=job.get("download_ready", False),
+        queue_position=get_queue_position(job_id),
+        queue_total=processing + queued,
+    )
+
+
+@app.get("/queue")
+async def get_queue() -> QueueInfo:
+    """Get current queue status for display."""
+    processing, queued, _ = get_queue_stats()
+    return QueueInfo(
+        processing=processing,
+        queued=queued,
+        total=processing + queued,
     )
 
 

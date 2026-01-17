@@ -139,6 +139,14 @@
             </p>
         </div>
 
+        <!-- Queue Status Display -->
+        <div id="queueStatus" class="mb-6 text-center hidden">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 border-gray-300 bg-white text-sm font-medium" style="color: var(--shadow);">
+                <span id="queueDot" class="w-2 h-2 rounded-full bg-green-500"></span>
+                <span id="queueText">Server ready</span>
+            </div>
+        </div>
+
         <!-- Main Form Card -->
         <div class="relative mb-8">
             <!-- Shadow layer -->
@@ -240,6 +248,18 @@
                             <span id="progressText" class="font-medium" style="color: var(--shadow);">Processing...</span>
                         </div>
                     </div>
+                    <div id="queuedContent" class="hidden">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-5 h-5 flex items-center justify-center">
+                                <span class="text-lg">&#128203;</span>
+                            </div>
+                            <span class="font-medium" style="color: var(--shadow);">You're in the queue!</span>
+                        </div>
+                        <p class="text-sm ml-8" style="color: var(--shadow); opacity: 0.8;">
+                            Position: <span id="queuePosition" class="font-bold" style="color: var(--accent);">#1</span>
+                            <span id="queueWaitText"> - You're next!</span>
+                        </p>
+                    </div>
                     <div id="errorContent" class="hidden">
                         <p class="text-red-700 font-medium" id="errorText"></p>
                     </div>
@@ -257,20 +277,6 @@
             </div>
         </div>
 
-        <!-- Too Busy Message -->
-        <div id="busyArea" class="hidden">
-            <div class="relative">
-                <div class="w-full h-full absolute inset-0 rounded-xl translate-y-2 translate-x-2" style="background-color: var(--evening);"></div>
-                <div class="rounded-xl relative z-20 p-6 border-[3px] border-gray-900" style="background-color: #fff8ed;">
-                    <p class="font-medium" style="color: var(--shadow);">
-                        Too many users right now! Please come back later, or email
-                        <a href="mailto:timf34@gmail.com" class="underline font-bold" style="color: var(--accent);">timf34@gmail.com</a>
-                        if this is something he should make just a little more scalable ;)
-                    </p>
-                </div>
-            </div>
-        </div>
-
         <!-- Footer -->
         <div class="mt-12 text-center text-sm" style="color: var(--shadow); opacity: 0.6;">
             <p>Supports Ghost, Substack, and WordPress blogs (up to 100 posts)</p>
@@ -280,14 +286,43 @@
     <script>
         let currentJobId = null;
         let pollInterval = null;
+        let queuePollInterval = null;
+
+        // Fetch and display queue status
+        async function updateQueueStatus() {
+            try {
+                const response = await fetch('/queue');
+                if (!response.ok) return;
+
+                const queue = await response.json();
+                const statusEl = document.getElementById('queueStatus');
+                const dotEl = document.getElementById('queueDot');
+                const textEl = document.getElementById('queueText');
+
+                statusEl.classList.remove('hidden');
+
+                if (queue.processing === 0 && queue.queued === 0) {
+                    dotEl.className = 'w-2 h-2 rounded-full bg-green-500';
+                    textEl.textContent = 'Server ready';
+                } else if (queue.processing > 0 && queue.queued === 0) {
+                    dotEl.className = 'w-2 h-2 rounded-full bg-yellow-500';
+                    textEl.textContent = `${queue.processing} job processing`;
+                } else {
+                    dotEl.className = 'w-2 h-2 rounded-full bg-orange-500';
+                    textEl.textContent = `${queue.processing} processing, ${queue.queued} in queue`;
+                }
+            } catch (error) {
+                // Silently fail - queue status is not critical
+            }
+        }
 
         async function handleSubmit(event) {
             event.preventDefault();
 
             // Reset UI
             document.getElementById('statusArea').classList.add('hidden');
-            document.getElementById('busyArea').classList.add('hidden');
             document.getElementById('progressContent').classList.remove('hidden');
+            document.getElementById('queuedContent').classList.add('hidden');
             document.getElementById('errorContent').classList.add('hidden');
             document.getElementById('downloadContent').classList.add('hidden');
 
@@ -306,7 +341,7 @@
 
             // Disable form
             document.getElementById('submitBtn').disabled = true;
-            document.getElementById('submitBtn').textContent = 'Processing...';
+            document.getElementById('submitBtn').textContent = 'Submitting...';
             document.getElementById('statusArea').classList.remove('hidden');
             document.getElementById('progressText').textContent = 'Starting...';
 
@@ -316,14 +351,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url, formats, max_posts: maxPosts })
                 });
-
-                if (response.status === 503) {
-                    // Too busy
-                    document.getElementById('statusArea').classList.add('hidden');
-                    document.getElementById('busyArea').classList.remove('hidden');
-                    resetForm();
-                    return;
-                }
 
                 if (!response.ok) {
                     const error = await response.json();
@@ -335,6 +362,8 @@
 
                 // Start polling for status
                 pollInterval = setInterval(checkStatus, 2000);
+                // Immediately check status
+                checkStatus();
 
             } catch (error) {
                 showError(error.message);
@@ -353,8 +382,26 @@
 
                 const status = await response.json();
 
-                if (status.status === 'processing') {
+                if (status.status === 'queued') {
+                    // Show queue position
+                    document.getElementById('progressContent').classList.add('hidden');
+                    document.getElementById('queuedContent').classList.remove('hidden');
+                    document.getElementById('queuePosition').textContent = `#${status.queue_position}`;
+                    document.getElementById('submitBtn').textContent = `In Queue (#${status.queue_position})`;
+
+                    // Update wait text based on position
+                    const waitText = document.getElementById('queueWaitText');
+                    if (status.queue_position === 1) {
+                        waitText.textContent = " - You're next!";
+                    } else {
+                        waitText.textContent = ` of ${status.queue_total} jobs`;
+                    }
+                } else if (status.status === 'processing') {
+                    // Switch from queued to processing view
+                    document.getElementById('queuedContent').classList.add('hidden');
+                    document.getElementById('progressContent').classList.remove('hidden');
                     document.getElementById('progressText').textContent = status.progress || 'Processing...';
+                    document.getElementById('submitBtn').textContent = 'Processing...';
                 } else if (status.status === 'complete') {
                     clearInterval(pollInterval);
                     showDownload();
@@ -363,6 +410,9 @@
                     showError(status.error || 'An error occurred');
                     resetForm();
                 }
+
+                // Update global queue status
+                updateQueueStatus();
 
             } catch (error) {
                 clearInterval(pollInterval);
@@ -373,6 +423,7 @@
 
         function showDownload() {
             document.getElementById('progressContent').classList.add('hidden');
+            document.getElementById('queuedContent').classList.add('hidden');
             document.getElementById('downloadContent').classList.remove('hidden');
             document.getElementById('downloadLink').href = `/download/${currentJobId}`;
             resetForm();
@@ -380,6 +431,7 @@
 
         function showError(message) {
             document.getElementById('progressContent').classList.add('hidden');
+            document.getElementById('queuedContent').classList.add('hidden');
             document.getElementById('errorContent').classList.remove('hidden');
             document.getElementById('errorText').textContent = message;
         }
@@ -388,6 +440,12 @@
             document.getElementById('submitBtn').disabled = false;
             document.getElementById('submitBtn').textContent = 'Pack Blog';
         }
+
+        // Initialize: fetch queue status on page load and poll periodically
+        document.addEventListener('DOMContentLoaded', () => {
+            updateQueueStatus();
+            queuePollInterval = setInterval(updateQueueStatus, 10000); // Update every 10s
+        });
     </script>
 </body>
 </html>
