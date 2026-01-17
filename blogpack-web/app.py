@@ -23,7 +23,7 @@ from blogpack.exporters import export_html, export_epub, export_pdf
 
 # Configuration
 MAX_CONCURRENT_JOBS = 1  # Keep low for memory-constrained servers
-MAX_POSTS = 100
+MAX_POSTS = 50  # Reduced for 2GB RAM servers
 TEMP_DIR = Path("/tmp/blogpack") if sys.platform != "win32" else Path("C:/temp/blogpack")
 JOB_EXPIRY_HOURS = 1
 
