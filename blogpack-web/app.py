@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
+import psutil
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +27,17 @@ MAX_CONCURRENT_JOBS = 1  # Keep low for memory-constrained servers
 MAX_POSTS = 50  # Reduced for 2GB RAM servers
 TEMP_DIR = Path("/tmp/blogpack") if sys.platform != "win32" else Path("C:/temp/blogpack")
 JOB_EXPIRY_HOURS = 1
+MEMORY_THRESHOLD_PERCENT = 20  # Skip heavy exports if less than 20% memory available
+
+
+def check_memory_available(threshold_percent: int = MEMORY_THRESHOLD_PERCENT) -> tuple[bool, float]:
+    """Check if enough memory is available.
+
+    Returns (is_ok, available_percent) where is_ok is True if available >= threshold.
+    """
+    mem = psutil.virtual_memory()
+    available_percent = mem.available / mem.total * 100
+    return available_percent >= threshold_percent, available_percent
 
 app = FastAPI(title="Blogpack", description="Pack blogs for offline reading")
 
@@ -110,23 +122,44 @@ async def process_blog(job_id: str, url: str, formats: list[str], max_posts: int
 
         # Export to requested formats
         exported_files = []
+        skipped_formats = []
 
+        # HTML is lightweight, always attempt it
         if "html" in formats:
             jobs[job_id]["progress"] = "Generating HTML..."
             html_path = export_html(articles, output_dir, url, image_map, blog_title)
             exported_files.append(html_path)
+            gc.collect()  # Clean up after each export
 
+        # EPUB - medium memory usage, check before starting
         if "epub" in formats:
-            jobs[job_id]["progress"] = "Generating EPUB..."
-            epub_path = export_epub(articles, output_dir, url, image_map, blog_title, blog_author)
-            if epub_path:
-                exported_files.append(epub_path)
+            mem_ok, mem_avail = check_memory_available()
+            if mem_ok:
+                jobs[job_id]["progress"] = "Generating EPUB..."
+                epub_path = export_epub(articles, output_dir, url, image_map, blog_title, blog_author)
+                if epub_path:
+                    exported_files.append(epub_path)
+                gc.collect()
+            else:
+                skipped_formats.append("EPUB")
+                jobs[job_id]["progress"] = f"Skipping EPUB (low memory: {mem_avail:.0f}% free)..."
 
+        # PDF - heaviest memory usage, check before starting
         if "pdf" in formats:
-            jobs[job_id]["progress"] = "Generating PDF..."
-            pdf_path = export_pdf(articles, output_dir, url, image_map, blog_title, blog_author)
-            if pdf_path:
-                exported_files.append(pdf_path)
+            mem_ok, mem_avail = check_memory_available()
+            if mem_ok:
+                jobs[job_id]["progress"] = "Generating PDF..."
+                pdf_path = export_pdf(articles, output_dir, url, image_map, blog_title, blog_author)
+                if pdf_path:
+                    exported_files.append(pdf_path)
+                gc.collect()
+            else:
+                skipped_formats.append("PDF")
+                jobs[job_id]["progress"] = f"Skipping PDF (low memory: {mem_avail:.0f}% free)..."
+
+        # Check if we have any exported files
+        if not exported_files:
+            raise ValueError("No formats could be exported - server memory too low. Try fewer posts.")
 
         # Create zip file
         jobs[job_id]["progress"] = "Creating download package..."
@@ -134,8 +167,13 @@ async def process_blog(job_id: str, url: str, formats: list[str], max_posts: int
         shutil.make_archive(str(zip_path), "zip", output_dir)
 
         jobs[job_id]["status"] = "complete"
-        jobs[job_id]["progress"] = None
         jobs[job_id]["download_ready"] = True
+
+        # Set completion message with skipped format info
+        if skipped_formats:
+            jobs[job_id]["progress"] = f"Done! (Skipped {', '.join(skipped_formats)} due to low memory - try fewer posts)"
+        else:
+            jobs[job_id]["progress"] = None
 
     except Exception as e:
         jobs[job_id]["status"] = "error"

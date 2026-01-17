@@ -265,6 +265,7 @@
                     </div>
                     <div id="downloadContent" class="hidden">
                         <p class="font-medium mb-4" style="color: var(--accent-dark);">Your blog pack is ready!</p>
+                        <p id="downloadWarning" class="hidden text-sm mb-4 p-2 rounded" style="background-color: #fff3cd; color: #856404;"></p>
                         <a
                             id="downloadLink"
                             href="#"
@@ -404,7 +405,7 @@
                     document.getElementById('submitBtn').textContent = 'Processing...';
                 } else if (status.status === 'complete') {
                     clearInterval(pollInterval);
-                    showDownload();
+                    showDownload(status.progress);
                 } else if (status.status === 'error') {
                     clearInterval(pollInterval);
                     showError(status.error || 'An error occurred');
@@ -421,11 +422,21 @@
             }
         }
 
-        function showDownload() {
+        function showDownload(message) {
             document.getElementById('progressContent').classList.add('hidden');
             document.getElementById('queuedContent').classList.add('hidden');
             document.getElementById('downloadContent').classList.remove('hidden');
             document.getElementById('downloadLink').href = `/download/${currentJobId}`;
+
+            // Show warning if some formats were skipped
+            const warningEl = document.getElementById('downloadWarning');
+            if (message && warningEl) {
+                warningEl.textContent = message;
+                warningEl.classList.remove('hidden');
+            } else if (warningEl) {
+                warningEl.classList.add('hidden');
+            }
+
             resetForm();
         }
 
