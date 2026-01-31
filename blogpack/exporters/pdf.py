@@ -40,6 +40,13 @@ def export_pdf(
         console.print("[yellow]Warning: weasyprint not available. Skipping PDF export.[/yellow]")
         console.print("[dim]Install with: pip install weasyprint[/dim]")
         return None
+    except OSError as e:
+        console.print("[yellow]Warning: weasyprint system dependencies missing. Skipping PDF export.[/yellow]")
+        console.print(f"[dim]Error: {e}[/dim]")
+        console.print("[dim]On Ubuntu/Debian: sudo apt install libpango-1.0-0 libpangocairo-1.0-0[/dim]")
+        console.print("[dim]On macOS: brew install pango[/dim]")
+        console.print("[dim]On Windows: Install GTK3 from MSYS2[/dim]")
+        return None
 
     console.print(f"[dim]Generating PDF with {len(articles)} articles...[/dim]")
 
@@ -170,6 +177,13 @@ article:first-of-type {
         html.write_pdf(str(pdf_path), stylesheets=[css])
         console.print(f"[green]PDF export complete: {pdf_path}[/green]")
         return pdf_path
+    except OSError as e:
+        console.print("[red]PDF export failed: Missing system libraries.[/red]")
+        console.print(f"[dim]Error: {e}[/dim]")
+        console.print("[dim]On Ubuntu/Debian: sudo apt install libpango-1.0-0 libpangocairo-1.0-0[/dim]")
+        console.print("[dim]On macOS: brew install pango[/dim]")
+        console.print("[dim]On Windows: Install GTK3 from MSYS2[/dim]")
+        return None
     except Exception as e:
         console.print(f"[red]PDF export failed: {e}[/red]")
         return None

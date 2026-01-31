@@ -1,3 +1,11 @@
 *.pyc
 *test*
 *.claude
+
+# Windows special device name (accidentally created as file)
+nul
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

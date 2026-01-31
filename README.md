@@ -13,8 +13,15 @@ Download entire blogs for offline reading. Generates PDF, EPUB, and HTML with wo
 ## Installation
 
 ```bash
-pip install -e .
+pip install blogpack
 ```
+
+**Note:** PDF export requires additional system libraries. If PDF generation fails:
+- Ubuntu/Debian: `sudo apt install libpango-1.0-0 libpangocairo-1.0-0`
+- macOS: `brew install pango`
+- Windows: Install GTK3 from MSYS2
+
+EPUB and HTML exports work without these dependencies.
 
 ## CLI Usage
 
@@ -26,7 +33,7 @@ blogpack https://www.cold-takes.com/ -o ./cold-takes
 blogpack https://www.cold-takes.com/ -f epub
 
 # Limit to 50 posts
-blogpack https://www.cold-takes.com/ -o ./output
+blogpack https://www.cold-takes.com/ -n 50
 
 # Skip images for faster download
 blogpack https://www.cold-takes.com/ --no-images
@@ -78,4 +85,9 @@ See [CLAUDE.md](CLAUDE.md) for detailed codebase documentation.
 
 ## License
 
-MIT
+GPL-3.0 - See [LICENSE](LICENSE) for details.
+
+## Links
+
+- GitHub: https://github.com/timf34/blogpack
+- PyPI: https://pypi.org/project/blogpack/
