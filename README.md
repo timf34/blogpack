@@ -1,14 +1,10 @@
 # Blogpack
 
-Download entire blogs for offline reading. Generates PDF, EPUB, and HTML with working internal links.
+Download entire blogs for offline reading. Generates PDF, EPUB, and HTML with working internal links and embedded images.
 
-## Features
+Absolutely ideal for long flights, distraction free reading, digital detoxes, or pretending you'll finally catch up on that Substack.
 
-- Downloads all posts from a blog
-- Preserves internal links between posts
-- Downloads and embeds images
-- Multiple output formats: EPUB (e-readers), HTML (browsers), PDF
-- Supports Ghost, Substack, and WordPress blogs
+Works with Substack, Ghost and Wordpress blogs. 
 
 ## Installation
 
