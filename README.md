@@ -23,26 +23,22 @@ pip install blogpack
 
 EPUB and HTML exports work without these dependencies.
 
-## CLI Usage
+## Usage
 
 ```bash
-# Download a blog (saves to ./cold-takes/ by default)
 blogpack https://www.cold-takes.com/
+```
 
-# Specify output directory
-blogpack https://www.cold-takes.com/ -o ./my-folder
+Downloads the blog to `./cold-takes/` with HTML, EPUB, and PDF formats.
 
-# Generate only EPUB
-blogpack https://www.cold-takes.com/ -f epub
+### Options
 
-# Limit to 50 posts
-blogpack https://www.cold-takes.com/ -n 50
-
-# Skip images for faster download
-blogpack https://www.cold-takes.com/ --no-images
-
-# Disable SSL verification (for sites with certificate issues)
-blogpack https://example.com/ --no-verify-ssl
+```bash
+blogpack https://example.com/ -o ./my-folder   # Custom output directory
+blogpack https://example.com/ -f epub          # Only generate EPUB
+blogpack https://example.com/ -n 50            # Limit to 50 posts
+blogpack https://example.com/ --no-images      # Skip images
+blogpack https://example.com/ --no-verify-ssl  # Disable SSL verification
 ```
 
 ## Web App
@@ -68,32 +64,15 @@ docker run -p 8000:8000 blogpack-web
 ## Output Structure
 
 ```
-output/
+<blog-name>/                  # Derived from blog URL
 ├── html/
 │   ├── index.html           # Table of contents
 │   ├── post-slug.html       # Individual posts
 │   └── images/              # Downloaded images
-├── blog-archive.epub        # For e-readers
-└── blog-archive.pdf         # Single PDF
+├── <blog-name>-archive.epub # For e-readers
+└── <blog-name>-archive.pdf  # Single PDF
 ```
-
-## Supported Platforms
-
-| Platform | Status |
-|----------|--------|
-| Ghost | Supported |
-| Substack | Supported |
-| WordPress | Supported |
-
-## Documentation
-
-See [CLAUDE.md](CLAUDE.md) for detailed codebase documentation.
 
 ## License
 
 GPL-3.0 - See [LICENSE](LICENSE) for details.
-
-## Links
-
-- GitHub: https://github.com/timf34/blogpack
-- PyPI: https://pypi.org/project/blogpack/
