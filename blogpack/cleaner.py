@@ -91,7 +91,11 @@ def clean_html(content_html: str) -> str:
     soup = BeautifulSoup(content_html, "lxml")
 
     # Remove unwanted elements
-    for tag in soup.find_all(["script", "style", "iframe", "noscript"]):
+    for tag in soup.find_all(["script", "style", "iframe", "noscript", "button"]):
+        tag.decompose()
+
+    # Remove interactive UI elements (expand buttons, refresh buttons, etc.)
+    for tag in soup.select("[class*='button'], [class*='Button'], .captioned-button-wrap"):
         tag.decompose()
 
     # Remove unwanted attributes (tracking, styles that might break)

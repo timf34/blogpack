@@ -321,7 +321,11 @@ class SubstackPlatform(BlogPlatform):
         # Remove unwanted elements
         for unwanted in content_elem.select(
             "script, style, .subscription-widget, .subscribe-widget, "
-            ".post-ufi, .post-footer, .comments-section, .share-dialog"
+            ".post-ufi, .post-footer, .comments-section, .share-dialog, "
+            # Remove interactive UI buttons (refresh, expand, etc.)
+            "button, .button-wrap, .captioned-button-wrap, .image-link-expand, "
+            ".tweet-link-top, .tweet-link-bottom, .tweet-header, "
+            "[class*='button'], [class*='Button']"
         ):
             unwanted.decompose()
 
