@@ -36,6 +36,7 @@ async def download_posts(
     platform: BlogPlatform,
     include_images: bool = True,
     output_dir: Path | None = None,
+    verify_ssl: bool = True,
 ) -> tuple[list[Article], dict[str, Path]]:
     """
     Download all posts and their images.
@@ -67,7 +68,8 @@ async def download_posts(
     async with httpx.AsyncClient(
         follow_redirects=True,
         timeout=30.0,
-        headers={"User-Agent": "blogpack/0.1.0 (offline reader)"}
+        headers={"User-Agent": "blogpack/0.1.0 (offline reader)"},
+        verify=verify_ssl,
     ) as client:
         with Progress(
             SpinnerColumn(),

@@ -9,7 +9,7 @@ from .platforms.base import PostInfo
 console = Console()
 
 
-async def discover_posts(base_url: str, platform: BlogPlatform | None = None) -> tuple[BlogPlatform, list[PostInfo]]:
+async def discover_posts(base_url: str, platform: BlogPlatform | None = None, verify_ssl: bool = True) -> tuple[BlogPlatform, list[PostInfo]]:
     """
     Discover all posts on a blog.
 
@@ -23,7 +23,8 @@ async def discover_posts(base_url: str, platform: BlogPlatform | None = None) ->
     async with httpx.AsyncClient(
         follow_redirects=True,
         timeout=30.0,
-        headers={"User-Agent": "blogpack/0.1.0 (offline reader)"}
+        headers={"User-Agent": "blogpack/0.1.0 (offline reader)"},
+        verify=verify_ssl,
     ) as client:
         # Fetch homepage to detect platform
         if platform is None:

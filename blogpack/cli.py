@@ -23,9 +23,9 @@ console = Console()
 def main(
     url: str = typer.Argument(..., help="Blog URL to download"),
     output: Path = typer.Option(
-        Path("./output"),
+        None,
         "-o", "--output",
-        help="Output directory",
+        help="Output directory (defaults to blog name)",
     ),
     format: str = typer.Option(
         "all",
@@ -47,6 +47,11 @@ def main(
         "-n", "--limit",
         help="Limit number of posts to download (useful for testing)",
     ),
+    verify_ssl: bool = typer.Option(
+        True,
+        "--verify-ssl/--no-verify-ssl",
+        help="Verify SSL certificates (disable for sites with cert issues)",
+    ),
 ):
     """
     Download a blog for offline reading.
@@ -54,16 +59,17 @@ def main(
     Example:
         blogpack https://www.cold-takes.com/ -o ./cold-takes
     """
-    asyncio.run(_run(url, output, format, images, platform, limit))
+    asyncio.run(_run(url, output, format, images, platform, limit, verify_ssl))
 
 
 async def _run(
     url: str,
-    output: Path,
+    output: Path | None,
     format: str,
     images: bool,
     platform: str | None,
     limit: int | None,
+    verify_ssl: bool,
 ):
     """Async main function."""
     # Normalize URL
@@ -71,11 +77,23 @@ async def _run(
         url = f"https://{url}"
     url = url.rstrip("/") + "/"
 
+    # Derive output folder from URL if not specified
+    if output is None:
+        parsed = urlparse(url)
+        # Extract domain name without www. and TLD
+        domain = parsed.netloc.replace("www.", "")
+        # Remove common TLDs and use as folder name
+        for tld in [".com", ".org", ".net", ".io", ".co", ".substack.com"]:
+            if domain.endswith(tld):
+                domain = domain[:-len(tld)]
+                break
+        output = Path(f"./{domain}")
+
     console.print(f"\n[bold]blogpack[/bold] - Downloading {url}\n")
 
     # Discover posts
     try:
-        detected_platform, posts = await discover_posts(url, platform=None)
+        detected_platform, posts = await discover_posts(url, platform=None, verify_ssl=verify_ssl)
     except Exception as e:
         console.print(f"[red]Error discovering posts: {e}[/red]")
         raise typer.Exit(1)
@@ -96,6 +114,7 @@ async def _run(
         platform=detected_platform,
         include_images=images,
         output_dir=output / "html" if images else None,
+        verify_ssl=verify_ssl,
     )
 
     if not articles:
