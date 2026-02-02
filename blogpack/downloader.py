@@ -29,6 +29,10 @@ PLATFORM_RATE_LIMITS = {
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 2.0  # seconds
 
+# Image download settings (more aggressive since images are served from CDNs)
+IMAGE_MAX_CONCURRENT = 20
+IMAGE_REQUEST_DELAY = 0.05  # 50ms between image requests
+
 
 async def download_posts(
     base_url: str,
@@ -152,15 +156,19 @@ async def download_posts(
                     images_dir = output_dir / "images"
                     images_dir.mkdir(parents=True, exist_ok=True)
 
+                    # Use separate, more aggressive settings for images (CDNs can handle it)
+                    image_semaphore = asyncio.Semaphore(IMAGE_MAX_CONCURRENT)
+                    console.print(f"[dim]Downloading {len(all_images)} images ({IMAGE_MAX_CONCURRENT} concurrent)[/dim]")
+
                     img_task = progress.add_task("[cyan]Downloading images...", total=len(all_images))
 
                     async def download_image(url: str) -> tuple[str, Path | None]:
-                        async with semaphore:
+                        async with image_semaphore:
                             retries = 0
                             backoff = INITIAL_BACKOFF
                             while retries <= MAX_RETRIES:
                                 try:
-                                    await asyncio.sleep(request_delay)
+                                    await asyncio.sleep(IMAGE_REQUEST_DELAY)
                                     response = await client.get(url)
 
                                     # Handle 429 with backoff
