@@ -26,8 +26,11 @@ EPUB and HTML exports work without these dependencies.
 ## CLI Usage
 
 ```bash
-# Download a blog (generates all formats by default)
-blogpack https://www.cold-takes.com/ -o ./cold-takes
+# Download a blog (saves to ./cold-takes/ by default)
+blogpack https://www.cold-takes.com/
+
+# Specify output directory
+blogpack https://www.cold-takes.com/ -o ./my-folder
 
 # Generate only EPUB
 blogpack https://www.cold-takes.com/ -f epub
@@ -37,6 +40,9 @@ blogpack https://www.cold-takes.com/ -n 50
 
 # Skip images for faster download
 blogpack https://www.cold-takes.com/ --no-images
+
+# Disable SSL verification (for sites with certificate issues)
+blogpack https://example.com/ --no-verify-ssl
 ```
 
 ## Web App
