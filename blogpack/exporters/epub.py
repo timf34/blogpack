@@ -65,10 +65,17 @@ def export_epub(
     chapters = []
     image_items = {}
 
-    # Add images to epub first
+    # Add images to epub first (track added files to avoid duplicates)
+    added_files = set()
     if image_map:
         for url, local_path in image_map.items():
             if local_path.exists():
+                # Skip if we already added this file (multiple URLs can map to same file)
+                if local_path.name in added_files:
+                    image_items[url] = f"images/{local_path.name}"
+                    continue
+                added_files.add(local_path.name)
+
                 # Determine media type
                 ext = local_path.suffix.lower()
                 media_types = {
