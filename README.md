@@ -1,5 +1,7 @@
 # Blogpack
 
+*Blog → Book!*
+
 Download entire blogs for offline reading. Generates PDF, EPUB, and HTML with working internal links and embedded images.
 
 Absolutely ideal for long flights, distraction free reading, digital detoxes, or pretending you'll finally catch up on that Substack.
